@@ -1,0 +1,23 @@
+announcements:
+  base_dir: assets/announcements
+  post_delay: 1.0
+  voice: sunhi_friendly
+bgm:
+  auto_play: false
+  ducked_volume: 15
+  fade_duration: 1.5
+  playlist:
+  - https://www.youtube.com/watch?v=dp0eiOzWN4Y&t=155s
+  - https://www.youtube.com/watch?v=fjX7Y3DKzAA
+  volume: 70
+logging:
+  backup_count: 3
+  file: logs/broadcast.log
+  level: INFO
+  max_bytes: 5242880
+remote:
+  enabled: false
+  host: 0.0.0.0
+  password_hash: ''
+  port: 8585
+  require_auth: true

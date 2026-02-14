@@ -1,0 +1,39 @@
+schedules:
+  weekday:
+    - time: "06:00"
+      announcement: "general/opening"
+      label: "개장 안내"
+    - time: "09:00"
+      announcement: "safety/general_safety"
+      label: "안전 수칙 안내"
+    - time: "12:00"
+      announcement: "general/midday"
+      label: "정오 안내"
+    - time: "17:00"
+      announcement: "safety/sanitize"
+      label: "기구 소독 안내"
+    - time: "21:30"
+      announcement: "general/closing_warning"
+      label: "마감 30분전 안내"
+    - time: "22:00"
+      announcement: "general/closing"
+      label: "마감 안내"
+  weekend:
+    - time: "08:00"
+      announcement: "general/opening_weekend"
+      label: "주말 개장 안내"
+    - time: "12:00"
+      announcement: "general/midday"
+      label: "정오 안내"
+    - time: "18:00"
+      announcement: "general/closing"
+      label: "마감 안내"
+
+day_mapping:
+  monday: weekday
+  tuesday: weekday
+  wednesday: weekday
+  thursday: weekday
+  friday: weekday
+  saturday: weekend
+  sunday: weekend

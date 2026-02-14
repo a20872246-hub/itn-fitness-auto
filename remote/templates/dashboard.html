@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITN Fitness 방송 제어</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #16213e, #0f3460);
+            padding: 16px 20px;
+            text-align: center;
+            border-bottom: 2px solid #e94560;
+        }
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header .subtitle { font-size: 12px; color: #888; margin-top: 4px; }
+
+        .container { max-width: 600px; margin: 0 auto; padding: 12px; }
+
+        .card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid #0f3460;
+        }
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e94560;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Status */
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+        }
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .status-dot.playing { background: #4ecca3; animation: pulse 1.5s infinite; }
+        .status-dot.stopped { background: #666; }
+        .status-dot.loading { background: #f0c040; animation: pulse 0.8s infinite; }
+        .status-dot.error { background: #e94560; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .status-label { font-size: 13px; color: #aaa; }
+        .status-value { font-size: 13px; font-weight: 500; }
+
+        /* Buttons */
+        .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+        .btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            min-height: 44px;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-play { background: #4ecca3; color: #1a1a2e; }
+        .btn-stop { background: #e94560; color: #fff; }
+        .btn-pause { background: #f0c040; color: #1a1a2e; }
+
+        /* Volume */
+        .volume-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .volume-row input[type="range"] {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            background: #0f3460;
+            border-radius: 3px;
+            outline: none;
+        }
+        .volume-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: #4ecca3;
+            cursor: pointer;
+        }
+        .volume-label { font-size: 13px; color: #aaa; min-width: 36px; text-align: right; }
+
+        /* URL Input */
+        .url-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .url-input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 13px;
+            outline: none;
+        }
+        .url-input:focus { border-color: #4ecca3; }
+        .btn-sm {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            background: #4ecca3;
+            color: #1a1a2e;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            min-height: 44px;
+        }
+
+        /* Announcements */
+        .ann-category {
+            margin-bottom: 8px;
+        }
+        .ann-category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: #0f3460;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .ann-category-header:hover { background: #1a3a6e; }
+        .ann-items { display: none; padding: 4px 0 4px 12px; }
+        .ann-items.open { display: block; }
+        .ann-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            margin: 4px 0;
+            background: #1a1a2e;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .ann-item-play {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            background: #4ecca3;
+            color: #1a1a2e;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            min-height: 32px;
+        }
+
+        /* Emergency */
+        .emergency-card {
+            background: linear-gradient(135deg, #3d0000, #1a0000);
+            border: 1px solid #e94560;
+        }
+        .btn-emergency {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #e94560;
+            border-radius: 10px;
+            background: #e94560;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 8px;
+            min-height: 52px;
+        }
+        .btn-emergency:active { background: #ff2050; }
+
+        /* Schedule */
+        .schedule-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #0f3460;
+            font-size: 13px;
+        }
+        .schedule-item:last-child { border-bottom: none; }
+        .schedule-time {
+            font-weight: 600;
+            color: #4ecca3;
+            min-width: 50px;
+        }
+        .schedule-label { color: #ccc; }
+        .schedule-next { color: #f0c040; font-size: 11px; }
+
+        /* Login */
+        .login-container {
+            max-width: 360px;
+            margin: 80px auto;
+            padding: 20px;
+        }
+        .login-card {
+            background: #16213e;
+            border-radius: 16px;
+            padding: 30px 24px;
+            text-align: center;
+            border: 1px solid #0f3460;
+        }
+        .login-card h2 { margin-bottom: 8px; font-size: 20px; }
+        .login-card .sub { color: #888; font-size: 13px; margin-bottom: 24px; }
+        .login-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 15px;
+            margin-bottom: 16px;
+            outline: none;
+            text-align: center;
+        }
+        .login-input:focus { border-color: #4ecca3; }
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: #4ecca3;
+            color: #1a1a2e;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            min-height: 48px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4ecca3;
+            color: #1a1a2e;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            display: none;
+            z-index: 100;
+        }
+        .toast.show { display: block; animation: fadeInOut 2s ease; }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            85% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+{% if show_login %}
+    <div class="login-container">
+        <div class="login-card">
+            <h2>ITN Fitness</h2>
+            <p class="sub">방송 시스템 원격 제어</p>
+            <form method="post" action="/login">
+                <input type="password" name="password" class="login-input"
+                       placeholder="비밀번호 입력" autocomplete="current-password" required>
+                <button type="submit" class="btn-login">로그인</button>
+            </form>
+        </div>
+    </div>
+{% else %}
+    <div class="header">
+        <h1>ITN Fitness 방송 제어</h1>
+        <div class="subtitle" id="clock"></div>
+    </div>
+
+    <div class="container">
+        <!-- BGM Status & Controls -->
+        <div class="card">
+            <div class="card-title">BGM 제어</div>
+            <div class="status-row">
+                <span>
+                    <span class="status-dot {{ bgm_state }}" id="bgmDot"></span>
+                    <span class="status-value" id="bgmState">{{ bgm_state }}</span>
+                </span>
+                <span class="status-label" id="bgmTitle">{{ bgm_title or '재생 중인 곡 없음' }}</span>
+            </div>
+
+            <div class="url-row">
+                <input type="text" class="url-input" id="bgmUrl"
+                       placeholder="YouTube URL 입력" value="">
+                <button class="btn-sm" onclick="bgmPlay()">재생</button>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-pause" onclick="bgmPause()">일시정지</button>
+                <button class="btn btn-stop" onclick="bgmStop()">정지</button>
+            </div>
+
+            <div class="volume-row">
+                <span class="status-label">볼륨</span>
+                <input type="range" min="0" max="100" value="{{ bgm_volume }}"
+                       id="volumeSlider" oninput="updateVolume(this.value)">
+                <span class="volume-label" id="volumeLabel">{{ bgm_volume }}%</span>
+            </div>
+        </div>
+
+        <!-- Quick Announce -->
+        <div class="card">
+            <div class="card-title">안내방송</div>
+            {% for cat_key, cat in categories.items() %}
+            {% if cat.items %}
+            <div class="ann-category">
+                <div class="ann-category-header" onclick="toggleCategory(this)">
+                    <span>{{ cat.label }}</span>
+                    <span>&#9660;</span>
+                </div>
+                <div class="ann-items">
+                    {% for item in cat.items %}
+                    <div class="ann-item">
+                        <span>{{ item.label }}</span>
+                        <button class="ann-item-play"
+                                onclick="announce('{{ cat_key }}', '{{ item.id }}')">
+                            재생
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- Emergency -->
+        <div class="card emergency-card">
+            <div class="card-title" style="color:#ff6b6b;">긴급 방송</div>
+            {% for item in categories.get('emergency', {}).get('items', []) %}
+            <button class="btn-emergency"
+                    onclick="emergencyBroadcast('{{ item.id }}', '{{ item.label }}')">
+                {{ item.label }}
+            </button>
+            {% endfor %}
+        </div>
+
+        <!-- Today's Schedule -->
+        <div class="card">
+            <div class="card-title">오늘 스케줄</div>
+            {% if today_schedule %}
+                {% for item in today_schedule %}
+                <div class="schedule-item">
+                    <span class="schedule-time">{{ item.time }}</span>
+                    <span class="schedule-label">{{ item.label }}</span>
+                    {% if next_announcement and item.time == next_announcement.time %}
+                    <span class="schedule-next">다음</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="color:#666;font-size:13px;padding:8px 0;">스케줄 없음</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show';
+            setTimeout(() => { t.className = 'toast'; }, 2000);
+        }
+
+        async function api(url, data = {}) {
+            const form = new FormData();
+            for (const [k, v] of Object.entries(data)) form.append(k, v);
+            try {
+                const res = await fetch(url, { method: 'POST', body: form });
+                if (res.status === 401) { window.location = '/login'; return null; }
+                return await res.json();
+            } catch (e) {
+                showToast('연결 오류');
+                return null;
+            }
+        }
+
+        function bgmPlay() {
+            const url = document.getElementById('bgmUrl').value;
+            api('/api/bgm/play', url ? { url } : {}).then(r => {
+                if (r) showToast('BGM 재생 시작');
+            });
+        }
+        function bgmStop() { api('/api/bgm/stop').then(r => { if (r) showToast('BGM 정지'); }); }
+        function bgmPause() { api('/api/bgm/pause').then(r => { if (r) showToast('BGM 일시정지/재개'); }); }
+
+        let volumeTimer;
+        function updateVolume(val) {
+            document.getElementById('volumeLabel').textContent = val + '%';
+            clearTimeout(volumeTimer);
+            volumeTimer = setTimeout(() => {
+                api('/api/bgm/volume', { volume: val });
+            }, 200);
+        }
+
+        function announce(cat, id) {
+            api('/api/announce', { category: cat, item_id: id }).then(r => {
+                if (r) {
+                    if (r.status === 'busy') showToast('방송 진행 중...');
+                    else showToast('안내방송 재생');
+                }
+            });
+        }
+
+        function emergencyBroadcast(id, label) {
+            if (confirm('긴급 방송을 송출하시겠습니까?\n\n' + label)) {
+                api('/api/emergency', { item_id: id }).then(r => {
+                    if (r) showToast('긴급 방송 송출');
+                });
+            }
+        }
+
+        function toggleCategory(el) {
+            const items = el.nextElementSibling;
+            items.classList.toggle('open');
+            el.querySelector('span:last-child').textContent =
+                items.classList.contains('open') ? '\u25B2' : '\u25BC';
+        }
+
+        // Clock
+        function updateClock() {
+            const now = new Date();
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            document.getElementById('clock').textContent =
+                now.toLocaleDateString('ko') + ' (' + days[now.getDay()] + ') ' +
+                now.toLocaleTimeString('ko');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Auto-refresh status
+        async function refreshStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (res.status === 401) return;
+                const data = await res.json();
+
+                const dot = document.getElementById('bgmDot');
+                dot.className = 'status-dot ' + data.bgm_state;
+                document.getElementById('bgmState').textContent = data.bgm_state;
+                document.getElementById('bgmTitle').textContent =
+                    data.bgm_title || '재생 중인 곡 없음';
+                document.getElementById('volumeSlider').value = data.bgm_volume;
+                document.getElementById('volumeLabel').textContent = data.bgm_volume + '%';
+            } catch (e) {}
+        }
+        setInterval(refreshStatus, 5000);
+    </script>
+{% endif %}
+</body>
+</html>
