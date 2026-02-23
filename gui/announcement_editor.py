@@ -121,9 +121,29 @@ class AnnouncementEditor:
         action_row = ttk.Frame(self._detail_frame)
         action_row.pack(fill=tk.X, pady=(10, 0))
 
-        ttk.Button(action_row, text="저장", command=self._save_item).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(action_row, text="테스트 재생", command=self._test_play).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(action_row, text="TTS 생성", command=self._generate_tts).pack(side=tk.LEFT)
+        self._save_btn = ttk.Button(action_row, text="저장", command=self._save_item)
+        self._save_btn.pack(side=tk.LEFT, padx=(0, 5))
+        self._test_btn = ttk.Button(action_row, text="테스트 재생", command=self._test_play)
+        self._test_btn.pack(side=tk.LEFT, padx=(0, 5))
+        self._tts_btn = ttk.Button(action_row, text="TTS 생성", command=self._generate_tts)
+        self._tts_btn.pack(side=tk.LEFT)
+
+        # Empty state overlay
+        self._empty_hint = ttk.Label(
+            self._detail_frame,
+            text="← 좌측 목록에서\n안내방송 항목을 선택하세요",
+            foreground="gray", font=("", 13),
+            anchor=tk.CENTER, justify=tk.CENTER,
+        )
+        self._show_empty_state()
+
+    def _show_empty_state(self):
+        """Show empty state hint, hide detail widgets."""
+        self._empty_hint.place(relx=0.5, rely=0.4, anchor=tk.CENTER)
+
+    def _hide_empty_state(self):
+        """Hide empty state hint."""
+        self._empty_hint.place_forget()
 
     def _refresh_tree(self):
         self._tree.delete(*self._tree.get_children())
@@ -156,6 +176,7 @@ class AnnouncementEditor:
         if not item:
             return
 
+        self._hide_empty_state()
         self._id_var.set(item["id"])
         self._cat_var.set(cat_key)
         self._label_var.set(item.get("label", ""))

@@ -104,6 +104,8 @@ def main():
     ann_player = AnnouncementPlayer(
         base_dir=settings.get("announcements", {}).get("base_dir", "assets/announcements"),
         voice_id=settings.get("announcements", {}).get("voice", "sunhi_friendly"),
+        chime_enabled=settings.get("announcements", {}).get("chime_enabled", True),
+        chime_type=settings.get("announcements", {}).get("chime_type", "school_bell"),
     )
 
     ann_manager = AnnouncementManager(
@@ -117,10 +119,14 @@ def main():
     sched_manager = ScheduleManager(
         config_path="config/schedules.yaml",
         announcement_manager=ann_manager,
+        bgm_player=bgm_player,
     )
 
     # Start scheduler
     sched_manager.start()
+
+    # Apply BGM playlist for current day/time
+    sched_manager.apply_current_bgm()
 
     # Start remote server (if enabled)
     remote_server = None

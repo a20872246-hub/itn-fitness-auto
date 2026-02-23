@@ -50,12 +50,27 @@ VOICE_PRESETS = {
 
 DEFAULT_VOICE = "sunhi_friendly"
 
+CHIME_PRESETS = {
+    "school_bell": "학교종",
+    "ding_dong": "띵동",
+    "soft_chime": "부드러운 차임",
+    "broadcast": "방송 시작음",
+    "bright_melody": "밝은 멜로디",
+    "simple_bell": "심플 벨",
+    "piano": "피아노",
+    "xylophone": "실로폰",
+}
+
+DEFAULT_CHIME = "school_bell"
+
 
 class AnnouncementPlayer:
     """Plays announcement audio files or generates TTS via edge-tts."""
 
     def __init__(self, base_dir: str = "assets/announcements",
-                 voice_id: str = DEFAULT_VOICE):
+                 voice_id: str = DEFAULT_VOICE,
+                 chime_enabled: bool = True,
+                 chime_type: str = DEFAULT_CHIME):
         self._instance = vlc.Instance("--no-video", "--quiet")
         self._player = self._instance.media_player_new()
         self._base_dir = base_dir
@@ -66,8 +81,44 @@ class AnnouncementPlayer:
         self._completion_callbacks: list = []
         self._tts_cache_dir = os.path.join(base_dir, ".tts_cache")
 
+        # Chime before announcements
+        self._chime_enabled = chime_enabled
+        self._chime_type = chime_type
+        self._chimes_dir = os.path.join(base_dir, "chimes")
+        self._chime_path = self._resolve_chime_path()
+
         em = self._player.event_manager()
         em.event_attach(vlc.EventType.MediaPlayerEndReached, self._on_finished)
+
+    def _resolve_chime_path(self) -> str | None:
+        """Resolve chime file path from chime type."""
+        for ext in ("wav", "mp3"):
+            path = os.path.join(self._chimes_dir, f"{self._chime_type}.{ext}")
+            if os.path.exists(path):
+                return path
+        # Fallback: legacy chime.wav/mp3 in base_dir
+        for ext in ("wav", "mp3"):
+            path = os.path.join(self._base_dir, f"chime.{ext}")
+            if os.path.exists(path):
+                return path
+        return None
+
+    @property
+    def chime_enabled(self) -> bool:
+        return self._chime_enabled
+
+    @chime_enabled.setter
+    def chime_enabled(self, value: bool):
+        self._chime_enabled = value
+
+    @property
+    def chime_type(self) -> str:
+        return self._chime_type
+
+    @chime_type.setter
+    def chime_type(self, value: str):
+        self._chime_type = value
+        self._chime_path = self._resolve_chime_path()
 
     @property
     def voice_id(self) -> str:
@@ -111,19 +162,28 @@ class AnnouncementPlayer:
                           text: str = None, on_complete=None) -> bool:
         """
         Play announcement by category/id.
+        If chime is enabled, plays chime first then the announcement.
         Looks for MP3 file first, falls back to TTS from text.
         """
-        mp3_path = os.path.join(self._base_dir, category, f"{item_id}.mp3")
-        if os.path.exists(mp3_path):
-            return self.play_file(mp3_path, on_complete)
+        def _play_actual():
+            mp3_path = os.path.join(self._base_dir, category, f"{item_id}.mp3")
+            if os.path.exists(mp3_path):
+                self.play_file(mp3_path, on_complete)
+                return
+            if text:
+                self._play_tts(text, category, item_id, on_complete)
+                return
+            logger.error(f"No audio file or text for {category}/{item_id}")
+            if on_complete:
+                on_complete()
 
-        if text:
-            return self._play_tts(text, category, item_id, on_complete)
+        # Play chime before announcement if enabled and file exists
+        if self._chime_enabled and self._chime_path and os.path.exists(self._chime_path):
+            logger.info("Playing chime before announcement")
+            return self.play_file(self._chime_path, _play_actual)
 
-        logger.error(f"No audio file or text for {category}/{item_id}")
-        if on_complete:
-            on_complete()
-        return False
+        _play_actual()
+        return True
 
     def _play_tts(self, text: str, category: str, item_id: str,
                   on_complete=None) -> bool:
@@ -188,11 +248,16 @@ class AnnouncementPlayer:
         self._is_playing = False
         callbacks = self._completion_callbacks.copy()
         self._completion_callbacks.clear()
-        for cb in callbacks:
-            try:
-                cb()
-            except Exception as e:
-                logger.error(f"Completion callback error: {e}")
+        if callbacks:
+            # Run callbacks in a separate thread because VLC event callbacks
+            # cannot call VLC playback methods directly
+            def _run():
+                for cb in callbacks:
+                    try:
+                        cb()
+                    except Exception as e:
+                        logger.error(f"Completion callback error: {e}")
+            threading.Thread(target=_run, daemon=True).start()
 
     def invalidate_cache(self, category: str, item_id: str):
         """Delete all cached TTS files for this announcement (all voices)."""

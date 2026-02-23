@@ -234,7 +234,10 @@ class BGMTab:
     # --- Playlist management ---
 
     def _load_playlist(self):
-        """Load saved playlist from settings."""
+        """Load saved playlist from settings, unless scheduler already set one."""
+        if self._bgm.playlist_count > 0:
+            self._refresh_listbox()
+            return
         urls = self._settings.get("bgm", {}).get("playlist", [])
         if urls:
             self._bgm.set_playlist(urls)

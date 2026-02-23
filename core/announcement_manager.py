@@ -84,18 +84,21 @@ class AnnouncementManager:
     def is_broadcasting(self) -> bool:
         return self._broadcasting
 
-    def broadcast(self, category: str, item_id: str) -> bool:
+    def broadcast(self, category: str, item_id: str,
+                  on_broadcast_complete=None) -> bool:
         """
         Execute full broadcast sequence:
         1. Duck BGM volume
         2. Play announcement
         3. On completion, restore BGM volume
+        4. Call on_broadcast_complete callback (e.g. start/stop BGM)
         """
         with self._lock:
             if self._broadcasting:
                 logger.warning("Broadcast already in progress")
                 return False
             self._broadcasting = True
+            self._post_broadcast_cb = on_broadcast_complete
 
         text = None
         for item in self.get_items(category):
@@ -128,6 +131,16 @@ class AnnouncementManager:
         )
         return True
 
+    def _fire_post_broadcast(self):
+        """Fire the post-broadcast callback if set."""
+        cb = self._post_broadcast_cb
+        self._post_broadcast_cb = None
+        if cb:
+            try:
+                cb()
+            except Exception as e:
+                logger.error(f"Post-broadcast callback error: {e}")
+
     def _on_announcement_complete(self):
         """Called when announcement finishes playing (BGM was ducked)."""
         bgm_settings = self._settings.get("bgm", {})
@@ -140,6 +153,7 @@ class AnnouncementManager:
         def on_restored():
             with self._lock:
                 self._broadcasting = False
+            self._fire_post_broadcast()
 
         self._volume_ctrl.restore(
             self._bgm.player, ducked_vol, normal_vol,
@@ -150,6 +164,7 @@ class AnnouncementManager:
         """Called when announcement finishes with no BGM playing."""
         with self._lock:
             self._broadcasting = False
+        self._fire_post_broadcast()
 
     def broadcast_emergency(self, item_id: str):
         """Emergency broadcast: immediate full mute, max volume, no fade."""

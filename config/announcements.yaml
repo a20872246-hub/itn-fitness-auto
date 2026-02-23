@@ -1,29 +1,4 @@
 categories:
-  class:
-    items:
-    - file: null
-      id: morning_class
-      label: 오전 수업 안내
-      text: 잠시 후 오전 수업이 시작됩니다. 해당 회원님은 준비해 주세요.
-    - file: null
-      id: evening_class
-      label: 저녁 수업 안내
-      text: 잠시 후 저녁 수업이 시작됩니다. 해당 회원님은 준비해 주세요.
-    label: 수업 안내
-  emergency:
-    items:
-    - file: null
-      id: fire
-      label: 화재 대피
-      text: 긴급 상황이 발생했습니다. 침착하게 비상구를 통해 대피해 주세요.
-    - file: null
-      id: emergency_general
-      label: 일반 긴급 안내
-      text: 관계자 안내 시까지 잠시 대기해 주세요.
-    label: 비상 안내
-  event:
-    items: []
-    label: 이벤트
   general:
     items:
     - file: null
@@ -38,10 +13,6 @@ categories:
       id: closing_warning
       label: 마감 30분전 안내
       text: 마감 30분 전입니다. 운동 마무리 부탁드립니다.
-    - file: null
-      id: midday
-      label: 정오 안내
-      text: 점심시간 안내드립니다. 즐거운 식사 되세요.
     - file: null
       id: opening_weekend
       label: 주말 개장 안내
