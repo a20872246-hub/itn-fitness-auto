@@ -6,3 +6,7 @@ assets/announcements/.tts_cache/
 venv/
 .venv/
 *.app/
+build/
+dist/
+*.spec
+*.zip

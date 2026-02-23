@@ -227,7 +227,7 @@ else
     echo "  환경 활성화 완료"
 
     # 패키지 상태 확인
-    if ! python3 -c "import vlc, schedule, yaml, gtts" 2>/dev/null; then
+    if ! python3 -c "import vlc, schedule, yaml, edge_tts" 2>/dev/null; then
         echo "  일부 패키지가 누락되었습니다. 재설치 중..."
         python3 -m pip install -r requirements.txt --quiet
     else
