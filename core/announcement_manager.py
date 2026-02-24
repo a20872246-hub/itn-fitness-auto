@@ -27,7 +27,20 @@ class AnnouncementManager:
 
     def _load_catalog(self) -> dict:
         with open(self._config_path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {"categories": {}}
+            catalog = yaml.safe_load(f) or {"categories": {}}
+        # Deduplicate items by ID within each category
+        for cat_key, cat in catalog.get("categories", {}).items():
+            items = cat.get("items", [])
+            seen = set()
+            deduped = []
+            for item in items:
+                if item["id"] not in seen:
+                    seen.add(item["id"])
+                    deduped.append(item)
+                else:
+                    logger.warning(f"Removed duplicate item '{item['id']}' in category '{cat_key}'")
+            cat["items"] = deduped
+        return catalog
 
     def _save_catalog(self):
         with open(self._config_path, "w", encoding="utf-8") as f:
@@ -55,6 +68,13 @@ class AnnouncementManager:
         cats = self._catalog.setdefault("categories", {})
         cat = cats.setdefault(category, {"label": category, "items": []})
         items = cat.setdefault("items", [])
+        # Prevent duplicate IDs
+        for existing in items:
+            if existing["id"] == item_id:
+                logger.warning(f"Item '{item_id}' already exists in '{category}', updating instead")
+                existing.update({"label": label, "text": text, "file": file_path})
+                self._save_catalog()
+                return
         items.append({
             "id": item_id,
             "label": label,

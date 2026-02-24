@@ -153,10 +153,16 @@ class AnnouncementEditor:
                 text=f"{cat.get('label', cat_key)} ({len(cat.get('items', []))})",
                 open=True,
             )
+            seen_ids = set()
             for item in cat.get("items", []):
+                iid = f"item_{cat_key}_{item['id']}"
+                if iid in seen_ids:
+                    logger.warning(f"Duplicate item skipped: {iid}")
+                    continue
+                seen_ids.add(iid)
                 self._tree.insert(
                     cat_node, tk.END,
-                    iid=f"item_{cat_key}_{item['id']}",
+                    iid=iid,
                     text=item.get("label", item["id"]),
                 )
 

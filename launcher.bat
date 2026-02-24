@@ -1,56 +1,46 @@
 @echo off
 chcp 65001 >nul 2>&1
-title ITN Fitness 자동 안내방송 시스템
+title ITN Fitness
 
-echo ╔════════════════════════════════════════╗
-echo ║  ITN Fitness 자동 안내방송 시스템       ║
-echo ║  v1.0.0                               ║
-echo ╚════════════════════════════════════════╝
+echo ========================================
+echo   ITN Fitness Auto Announcement System
+echo   v1.0.0
+echo ========================================
 echo.
 
 cd /d "%~dp0"
 
 :: ================================================================
-:: STEP 1: Python 확인
+:: STEP 1: Python check
 :: ================================================================
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo   STEP 1/3: Python 확인
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo.
+echo [STEP 1/3] Python...
 
 where python >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Python이 설치되지 않았습니다.
-    echo.
-    echo 다음 링크에서 Python을 설치해주세요:
-    echo   https://www.python.org/downloads/
-    echo.
-    echo [중요] 설치 시 "Add Python to PATH" 체크 필수!
+    echo [ERROR] Python not found.
+    echo   Download: https://www.python.org/downloads/
+    echo   Install with "Add Python to PATH" checked!
     echo.
     pause
     exit /b 1
 )
 
 for /f "tokens=*" %%i in ('python --version 2^>^&1') do set PYVER=%%i
-echo   %PYVER% 발견
+echo   %PYVER% OK
 echo.
 
 :: ================================================================
-:: STEP 2: VLC 확인
+:: STEP 2: VLC check
 :: ================================================================
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo   STEP 2/3: VLC 확인
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo.
+echo [STEP 2/3] VLC Media Player...
 
 if exist "C:\Program Files\VideoLAN\VLC\vlc.exe" (
-    echo   VLC Media Player 발견
+    echo   VLC OK
 ) else if exist "C:\Program Files (x86)\VideoLAN\VLC\vlc.exe" (
-    echo   VLC Media Player 발견
+    echo   VLC OK
 ) else (
-    echo   VLC Media Player가 설치되지 않았습니다.
-    echo   다운로드: https://www.videolan.org/vlc/
-    echo   VLC 설치 후 다시 실행해주세요.
+    echo [ERROR] VLC Media Player not found.
+    echo   Download: https://www.videolan.org/vlc/
     echo.
     pause
     exit /b 1
@@ -58,63 +48,61 @@ if exist "C:\Program Files\VideoLAN\VLC\vlc.exe" (
 echo.
 
 :: ================================================================
-:: STEP 3: 패키지 설치 및 실행
+:: STEP 3: Install packages and run
 :: ================================================================
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo   STEP 3/3: 패키지 설치 및 실행
-echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo [STEP 3/3] Packages...
 echo.
 
 if not exist "venv" (
-    echo   처음 실행입니다. 환경 설정 중...
-    echo   (약 1-2분 소요됩니다)
+    echo   First run - setting up environment...
+    echo   This may take 1-2 minutes.
     echo.
 
     python -m venv venv
     if %errorlevel% neq 0 (
-        echo 가상환경 생성 실패
+        echo [ERROR] Failed to create virtual environment.
         pause
         exit /b 1
     )
 
     call venv\Scripts\activate.bat
 
-    echo   pip 업그레이드 중...
+    echo   Upgrading pip...
     python -m pip install --upgrade pip --quiet
 
-    echo   패키지 설치 중...
+    echo   Installing packages...
     python -m pip install -r requirements.txt --quiet
 
     if %errorlevel% neq 0 (
         echo.
-        echo   첫 번째 설치 실패. 재시도 중...
+        echo   Retrying install...
         python -m pip install -r requirements.txt --quiet
         if %errorlevel% neq 0 (
-            echo   패키지 설치 실패
-            echo   수동 설치: venv\Scripts\activate ^& pip install -r requirements.txt
+            echo [ERROR] Package install failed.
+            echo   Manual install: venv\Scripts\activate ^& pip install -r requirements.txt
             pause
             exit /b 1
         )
     )
 
     echo.
-    echo   환경 설정 완료!
+    echo   Setup complete!
     echo.
 ) else (
     call venv\Scripts\activate.bat
-    echo   환경 활성화 완료
+    echo   Environment activated.
 
     python -c "import vlc, schedule, yaml, edge_tts" 2>nul
     if %errorlevel% neq 0 (
-        echo   일부 패키지가 누락되었습니다. 재설치 중...
+        echo   Some packages missing. Reinstalling...
         python -m pip install -r requirements.txt --quiet
     ) else (
-        echo   패키지 확인 완료
+        echo   Packages OK
     )
 )
 echo.
 
-:: 기본 디렉토리 생성
+:: Create default directories
 if not exist "assets\announcements\general" mkdir "assets\announcements\general"
 if not exist "assets\announcements\safety" mkdir "assets\announcements\safety"
 if not exist "assets\announcements\class" mkdir "assets\announcements\class"
@@ -122,26 +110,25 @@ if not exist "assets\announcements\event" mkdir "assets\announcements\event"
 if not exist "assets\announcements\emergency" mkdir "assets\announcements\emergency"
 if not exist "logs" mkdir "logs"
 
-echo ===========================================
-echo   시스템 시작!
-echo ===========================================
+echo ========================================
+echo   Starting system...
+echo ========================================
 echo.
 
 python main.py
 
 if %errorlevel% neq 0 (
     echo.
-    echo 안내방송 시스템이 오류로 종료되었습니다.
-    echo 오류 코드: %errorlevel%
+    echo [ERROR] System exited with error code: %errorlevel%
     echo.
-    echo 문제 해결:
-    echo   1. VLC Media Player 설치 확인
-    echo   2. 인터넷 연결 확인
-    echo   3. config\ 폴더의 설정 파일 확인
+    echo Troubleshooting:
+    echo   1. Check VLC installation
+    echo   2. Check internet connection
+    echo   3. Check config\ folder
     echo.
 ) else (
     echo.
-    echo 안내방송 시스템이 정상 종료되었습니다.
+    echo System stopped normally.
     echo.
 )
 

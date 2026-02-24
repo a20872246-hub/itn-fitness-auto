@@ -1,35 +1,35 @@
 @echo off
 chcp 65001 >nul 2>&1
-title ITN Fitness 안내방송 시스템 - Windows 빌드
+title ITN Fitness - Windows Build
 
-echo ╔════════════════════════════════════════╗
-echo ║  ITN Fitness 안내방송 시스템             ║
-echo ║  Windows 빌드 스크립트 v1.0.0           ║
-echo ╚════════════════════════════════════════╝
+echo ========================================
+echo   ITN Fitness Announcement System
+echo   Windows Build Script v1.0.0
+echo ========================================
 echo.
 
 cd /d "%~dp0"
 
 :: ================================================================
-:: 1. Python 확인
+:: 1. Python check
 :: ================================================================
-echo [1/4] 빌드 환경 확인 중...
+echo [1/4] Checking build environment...
 
 where python >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Python이 설치되지 않았습니다.
-    echo https://www.python.org/downloads/ 에서 설치해주세요.
+    echo Python not found.
+    echo https://www.python.org/downloads/
     pause
     exit /b 1
 )
 
-for /f "tokens=*" %%i in ('python --version 2^>^&1') do echo   %%i 발견
+for /f "tokens=*" %%i in ('python --version 2^>^&1') do echo   %%i found
 echo.
 
 :: ================================================================
-:: 2. 가상환경 및 PyInstaller 준비
+:: 2. Prepare venv and PyInstaller
 :: ================================================================
-echo [2/4] 빌드 환경 준비 중...
+echo [2/4] Preparing build environment...
 
 if not exist "venv" (
     python -m venv venv
@@ -40,28 +40,28 @@ python -m pip install --upgrade pip --quiet
 python -m pip install -r requirements.txt --quiet
 python -m pip install pyinstaller --quiet
 
-echo   빌드 환경 준비 완료
+echo   Build environment ready
 echo.
 
 :: ================================================================
-:: 3. 기존 빌드 정리
+:: 3. Clean previous build
 :: ================================================================
-echo [3/4] 기존 빌드 정리 중...
+echo [3/4] Cleaning previous build...
 if exist "build" rmdir /s /q build
 if exist "dist" rmdir /s /q dist
 if exist "*.spec" del /q *.spec
-echo   정리 완료
+echo   Clean done
 echo.
 
 :: ================================================================
-:: 4. PyInstaller 빌드
+:: 4. PyInstaller build
 :: ================================================================
-echo [4/4] PyInstaller 빌드 중...
-echo   (약 2-5분 소요됩니다)
+echo [4/4] Building with PyInstaller...
+echo   (This may take 2-5 minutes)
 echo.
 
 pyinstaller ^
-    --name="ITN Fitness 안내방송" ^
+    --name="ITN_Fitness" ^
     --windowed ^
     --noconfirm ^
     --clean ^
@@ -87,27 +87,22 @@ pyinstaller ^
 
 if %errorlevel% neq 0 (
     echo.
-    echo 빌드 실패!
+    echo Build failed!
     pause
     exit /b 1
 )
 
-:: config 폴더를 dist에도 복사 (수정 가능하도록)
+:: Copy config folder to dist (for user editing)
 xcopy /E /I /Y config "dist\config" >nul
 
 echo.
-echo ╔════════════════════════════════════════╗
-echo ║  빌드 완료!                            ║
-echo ╠════════════════════════════════════════╣
-echo ║                                        ║
-echo ║  실행 파일:                             ║
-echo ║  dist\ITN Fitness 안내방송\             ║
-echo ║     ITN Fitness 안내방송.exe            ║
-echo ║                                        ║
-echo ╚════════════════════════════════════════╝
+echo ========================================
+echo   Build complete!
 echo.
-echo 배포 방법:
-echo   dist\ITN Fitness 안내방송\ 폴더를 ZIP으로 압축하여 배포
+echo   Output: dist\ITN_Fitness\ITN_Fitness.exe
+echo.
+echo   To distribute: ZIP the dist\ITN_Fitness\ folder
+echo ========================================
 echo.
 
 pause
