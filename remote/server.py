@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 import logging
 import uvicorn
@@ -26,7 +27,10 @@ class RemoteServer:
         self._server: uvicorn.Server | None = None
 
         self.app = FastAPI(title="ITN Fitness Broadcast Control")
-        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+        if getattr(sys, 'frozen', False):
+            templates_dir = os.path.join(sys._MEIPASS, "remote", "templates")
+        else:
+            templates_dir = os.path.join(os.path.dirname(__file__), "templates")
         self._templates = Jinja2Templates(directory=templates_dir)
         self._setup_routes()
 

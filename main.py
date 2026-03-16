@@ -11,8 +11,14 @@ import yaml
 import logging
 from logging.handlers import RotatingFileHandler
 
-# Ensure working directory is the script's directory
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+# Ensure working directory is correct (supports both script and PyInstaller exe)
+if getattr(sys, 'frozen', False):
+    # Running as PyInstaller exe
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    # Running as script
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(BASE_DIR)
 
 
 def setup_logging(settings: dict):

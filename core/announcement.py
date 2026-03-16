@@ -71,8 +71,24 @@ class AnnouncementPlayer:
                  voice_id: str = DEFAULT_VOICE,
                  chime_enabled: bool = True,
                  chime_type: str = DEFAULT_CHIME):
-        self._instance = vlc.Instance("--no-video", "--quiet")
+        # Windows audio output fix: explicitly set audio output module
+        import platform
+        if platform.system() == "Windows":
+            logger.info("Initializing announcement player for Windows with DirectSound")
+            self._instance = vlc.Instance(
+                "--no-video",
+                "--quiet",
+                "--aout=directsound",  # Windows DirectSound audio output
+                "--audio-resampler=samplerate",
+                "--directx-audio-device=",  # Use default audio device
+                "--mmdevice-audio-device=",  # Use default MMDevice
+            )
+        else:
+            logger.info("Initializing announcement player for macOS/Linux")
+            self._instance = vlc.Instance("--no-video", "--quiet")
+
         self._player = self._instance.media_player_new()
+        logger.info(f"Announcement player initialized with voice: {voice_id}")
         self._base_dir = base_dir
         self._voice_id = voice_id
         self._rate = None  # None = use preset default
@@ -151,10 +167,11 @@ class AnnouncementPlayer:
         with self._lock:
             media = self._instance.media_new(abs_path)
             self._player.set_media(media)
+            self._player.audio_set_volume(100)  # Set volume BEFORE play
             self._player.play()
             import time
-            time.sleep(0.1)
-            self._player.audio_set_volume(100)
+            time.sleep(0.2)  # Increased wait time for Windows
+            self._player.audio_set_volume(100)  # Set again after play
             self._is_playing = True
         return True
 

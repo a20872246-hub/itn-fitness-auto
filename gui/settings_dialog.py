@@ -222,14 +222,28 @@ class SettingsTab:
         def _play():
             try:
                 import vlc
-                instance = vlc.Instance("--no-video", "--quiet")
+                import platform
+                # Windows audio output fix
+                if platform.system() == "Windows":
+                    instance = vlc.Instance(
+                        "--no-video",
+                        "--quiet",
+                        "--aout=directsound",
+                        "--audio-resampler=samplerate",
+                        "--directx-audio-device=",
+                        "--mmdevice-audio-device=",
+                    )
+                else:
+                    instance = vlc.Instance("--no-video", "--quiet")
+
                 player = instance.media_player_new()
                 media = instance.media_new(os.path.abspath(path))
                 player.set_media(media)
+                player.audio_set_volume(100)  # Set volume BEFORE play
                 player.play()
                 import time
-                time.sleep(0.1)
-                player.audio_set_volume(100)
+                time.sleep(0.2)  # Increased wait time for Windows
+                player.audio_set_volume(100)  # Set again after play
                 # Wait for playback to finish (max 5 seconds)
                 for _ in range(50):
                     time.sleep(0.1)

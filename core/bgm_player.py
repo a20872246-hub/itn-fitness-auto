@@ -20,9 +20,25 @@ class BGMPlayer:
     """YouTube audio streaming player with playlist support."""
 
     def __init__(self, volume: int = 70):
-        self._instance = vlc.Instance("--no-video", "--quiet")
+        # Windows audio output fix: explicitly set audio output module
+        import platform
+        if platform.system() == "Windows":
+            logger.info("Initializing BGM player for Windows with DirectSound")
+            self._instance = vlc.Instance(
+                "--no-video",
+                "--quiet",
+                "--aout=directsound",  # Windows DirectSound audio output
+                "--audio-resampler=samplerate",
+                "--directx-audio-device=",  # Use default audio device
+                "--mmdevice-audio-device=",  # Use default MMDevice
+            )
+        else:
+            logger.info("Initializing BGM player for macOS/Linux")
+            self._instance = vlc.Instance("--no-video", "--quiet")
+
         self._player = self._instance.media_player_new()
         self._volume = volume
+        logger.info(f"BGM player initialized with volume: {volume}")
         self._state = BGMState.STOPPED
         self._current_url = ""
         self._current_title = ""
@@ -163,9 +179,10 @@ class BGMPlayer:
                         # duration already set in _extract_audio_url
                 media = self._instance.media_new(stream_url)
                 self._player.set_media(media)
+                self._player.audio_set_volume(self._volume)  # Set volume BEFORE play
                 self._player.play()
-                time.sleep(0.3)
-                self._player.audio_set_volume(self._volume)
+                time.sleep(0.5)  # Increased wait time for Windows
+                self._player.audio_set_volume(self._volume)  # Set again after play
             self._set_state(BGMState.PLAYING)
             self._notify_track_change()
         except Exception as e:
@@ -241,9 +258,10 @@ class BGMPlayer:
 
     def resume(self):
         with self._lock:
+            self._player.audio_set_volume(self._volume)  # Set volume BEFORE resume
             self._player.play()
-            time.sleep(0.1)
-            self._player.audio_set_volume(self._volume)
+            time.sleep(0.2)  # Increased wait time
+            self._player.audio_set_volume(self._volume)  # Set again after resume
         self._set_state(BGMState.PLAYING)
 
     @property
