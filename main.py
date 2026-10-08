@@ -126,6 +126,7 @@ def main():
         config_path="config/schedules.yaml",
         announcement_manager=ann_manager,
         bgm_player=bgm_player,
+        settings=settings,
     )
 
     # Start scheduler
@@ -164,7 +165,7 @@ def main():
     # Auto-play BGM if configured
     if settings.get("bgm", {}).get("auto_play", False):
         default_url = settings.get("bgm", {}).get("default_url", "")
-        if default_url:
+        if default_url and not sched_manager.is_closed():
             bgm_player.play(default_url)
 
     # Start GUI

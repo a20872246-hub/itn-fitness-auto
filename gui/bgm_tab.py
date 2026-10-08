@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -294,9 +295,25 @@ class BGMTab:
         if not url.startswith("http"):
             url = "https://" + url
 
+        self._url_entry.delete(0, tk.END)
+
+        if self._bgm.is_playlist_url(url):
+            # Playlist URL: add every video in the playlist (network, background)
+            def _expand():
+                try:
+                    count = self._bgm.add_url_expanded(url)
+                    msg = f"재생목록에서 {count}곡을 추가했습니다."
+                    self._root.after(0, lambda: (self._refresh_listbox(),
+                                                 messagebox.showinfo("추가 완료", msg)))
+                except Exception as e:
+                    err = str(e)
+                    self._root.after(0, lambda: messagebox.showerror(
+                        "추가 실패", f"재생목록을 불러오지 못했습니다.\n{err}"))
+            threading.Thread(target=_expand, daemon=True).start()
+            return
+
         self._bgm.add_to_playlist(url)
         new_idx = self._bgm.playlist_count - 1
-        self._url_entry.delete(0, tk.END)
         self._refresh_listbox()
 
         # Fetch title & duration in background

@@ -74,6 +74,7 @@ pyinstaller \
     --hidden-import=aiohttp \
     --collect-all=edge_tts \
     --collect-all=yt_dlp \
+    --collect-all=holidays \
     main.py
 
 echo ""

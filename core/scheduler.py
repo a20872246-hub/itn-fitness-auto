@@ -2,7 +2,12 @@ import schedule
 import yaml
 import threading
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+
+try:
+    import holidays
+except ImportError:  # holidays package missing: only Saturday rule applies
+    holidays = None
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +22,14 @@ class ScheduleManager:
     Each entry has its own list of days it applies to.
     """
 
-    def __init__(self, config_path: str, announcement_manager, bgm_player=None):
+    def __init__(self, config_path: str, announcement_manager, bgm_player=None,
+                 settings: dict = None):
         self._config_path = config_path
+        self._settings = settings or {}
+        self._kr_holidays = holidays.country_holidays("KR") if holidays else None
+        if holidays is None:
+            logger.warning("holidays package not installed; "
+                           "public holiday auto-stop disabled")
         self._ann_manager = announcement_manager
         self._bgm_player = bgm_player
         self._config = self._load_config()
@@ -69,17 +80,17 @@ class ScheduleManager:
 
             bgm_action = entry.get("bgm_action")  # "play", "stop", or None
 
-            # Register a job for each day this entry applies to
-            for day_name in days:
-                if day_name not in DAY_NAMES:
-                    continue
-                day_scheduler = getattr(schedule.every(), day_name)
-                day_scheduler.at(time_str).do(
+            # One daily job; _trigger checks the day (public holidays
+            # follow the Saturday schedule)
+            valid_days = [d for d in days if d in DAY_NAMES]
+            if valid_days:
+                schedule.every().day.at(time_str).do(
                     self._trigger,
                     category=category,
                     item_id=item_id,
                     label=label,
                     bgm_action=bgm_action,
+                    days=valid_days,
                 )
                 job_count += 1
 
@@ -96,15 +107,24 @@ class ScheduleManager:
         logger.info(f"Scheduled {len(self._scheduled_items)} entries ({job_count} jobs)")
 
         self._setup_bgm_schedules()
+        self._setup_auto_stop()
 
     def _trigger(self, category: str, item_id: str, label: str,
-                 bgm_action: str = None):
+                 bgm_action: str = None, days: list[str] = None):
+        today = datetime.now().date()
+        if self.is_closed_day(today):
+            logger.info(f"Closed day, skipping scheduled announcement: {label}")
+            return
+        if days is not None and self.effective_day_name(today) not in days:
+            return
         logger.info(f"Triggering scheduled announcement: {label}")
 
         on_complete = None
         if bgm_action == "play" and self._bgm_player:
             def on_complete():
-                if self._bgm_player.playlist_count > 0:
+                if self.is_closed():
+                    logger.info("Closed, skipping BGM auto-play")
+                elif self._bgm_player.playlist_count > 0:
                     logger.info("BGM auto-play after announcement")
                     idx = self._bgm_player.playlist_index
                     self._bgm_player.play_index(idx if idx >= 0 else 0)
@@ -143,7 +163,7 @@ class ScheduleManager:
 
     def get_today_schedule(self) -> list[dict]:
         """Get today's scheduled items sorted by time."""
-        today = DAY_NAMES[datetime.now().weekday()]
+        today = self.effective_day_name(datetime.now().date())
         items = [
             item for item in self._scheduled_items
             if today in item.get("days", [])
@@ -154,7 +174,7 @@ class ScheduleManager:
     def get_next_announcement(self) -> dict | None:
         """Get the next upcoming announcement for display."""
         now = datetime.now()
-        today_name = DAY_NAMES[now.weekday()]
+        today_name = self.effective_day_name(now.date())
         now_time = now.strftime("%H:%M")
 
         upcoming = []
@@ -264,6 +284,9 @@ class ScheduleManager:
 
     def _trigger_bgm(self, playlist: list[str], label: str):
         """Called by schedule library to swap the BGM playlist."""
+        if self.is_closed():
+            logger.info(f"Closed, skipping BGM change: {label}")
+            return
         logger.info(f"Triggering BGM change: {label} ({len(playlist)} tracks)")
         self._bgm_player.set_playlist(playlist)
         if not self._ann_manager.is_broadcasting:
@@ -302,6 +325,132 @@ class ScheduleManager:
                 logger.info(f"Applying current BGM: {active_entry.get('label', '')} "
                             f"({len(playlist)} tracks)")
                 self._bgm_player.set_playlist(playlist)
+
+    # --- Operating hours (BGM auto start/stop) ---
+
+    def _hours_config(self) -> dict:
+        cfg = self._settings.get("bgm", {}).get("auto_stop", {})
+        return {
+            "enabled": cfg.get("enabled", True),
+            "weekday_open_time": cfg.get("weekday_open_time", "06:00"),
+            "weekday_time": cfg.get("weekday_time", "01:00"),
+            "weekend_open_time": cfg.get("weekend_open_time", "09:00"),
+            "weekend_time": cfg.get("weekend_time", "19:00"),
+            "closed_days": cfg.get("closed_days", ["sunday"]),
+        }
+
+    def _setup_auto_stop(self):
+        """
+        Operating hours:
+        weekdays (Mon-Fri) weekday_open_time ~ weekday_time next morning
+        (default 06:00 ~ 01:00), Saturdays and public holidays
+        weekend_open_time ~ weekend_time (default 09:00 ~ 19:00),
+        closed_days (default Sunday) closed.
+        BGM starts automatically at opening and is checked every 30 seconds
+        and stopped outside operating hours. This also covers app restarts,
+        PC sleep and tracks that finish loading after a stop.
+        Manual playback on closed days is allowed.
+        """
+        if not self._bgm_player:
+            return
+
+        cfg = self._hours_config()
+        if not cfg["enabled"]:
+            logger.info("BGM auto start/stop disabled")
+            return
+
+        self._pending_open_play = False
+        schedule.every().day.at(cfg["weekday_open_time"]).do(
+            self._auto_open, weekend=False)
+        schedule.every().day.at(cfg["weekend_open_time"]).do(
+            self._auto_open, weekend=True)
+        schedule.every(30).seconds.do(self._enforce_operating_hours)
+        logger.info(f"BGM operating hours: weekdays {cfg['weekday_open_time']}"
+                    f"~{cfg['weekday_time']}, Saturdays/holidays "
+                    f"{cfg['weekend_open_time']}~{cfg['weekend_time']}, "
+                    f"closed {cfg['closed_days']}")
+
+    def is_holiday(self, date) -> bool:
+        """True if date is a Korean public holiday (incl. substitute holidays)."""
+        return bool(self._kr_holidays is not None and date in self._kr_holidays)
+
+    def is_closed_day(self, date) -> bool:
+        """True if the gym is closed all day (e.g. Sunday)."""
+        cfg = self._hours_config()
+        return cfg["enabled"] and DAY_NAMES[date.weekday()] in cfg["closed_days"]
+
+    def _is_weekday_hours(self, date) -> bool:
+        """True if date runs on weekday hours (Mon-Fri, not a holiday/closed day)."""
+        return (date.weekday() < 5 and not self.is_holiday(date)
+                and not self.is_closed_day(date))
+
+    def effective_day_name(self, date) -> str:
+        """Day name whose schedule applies: public holidays follow Saturday."""
+        if self.is_holiday(date) and not self.is_closed_day(date):
+            return "saturday"
+        return DAY_NAMES[date.weekday()]
+
+    def is_closed(self, now: datetime = None) -> bool:
+        """True if the gym is outside operating hours at the given time."""
+        cfg = self._hours_config()
+        if not cfg["enabled"]:
+            return False
+        now = now or datetime.now()
+        now_time = now.strftime("%H:%M")
+        today = now.date()
+
+        # After midnight: weekday hours run until weekday_time
+        yesterday = today - timedelta(days=1)
+        if now_time < cfg["weekday_time"] and self._is_weekday_hours(yesterday):
+            return False
+
+        if self.is_closed_day(today):
+            return True
+        if self._is_weekday_hours(today):
+            return now_time < cfg["weekday_open_time"]
+        return not (cfg["weekend_open_time"] <= now_time < cfg["weekend_time"])
+
+    def _auto_open(self, weekend: bool):
+        """Start BGM at opening time (weekday or Saturday/holiday)."""
+        today = datetime.now().date()
+        if self.is_closed_day(today) or self._is_weekday_hours(today) == weekend:
+            return
+        if self._ann_manager.is_broadcasting:
+            # Opening announcement in progress: start after it ends
+            self._pending_open_play = True
+        else:
+            self._start_bgm()
+
+    def _start_bgm(self):
+        from core.bgm_player import BGMState
+        if self._bgm_player.state in (BGMState.PLAYING, BGMState.LOADING):
+            return
+        if self._bgm_player.playlist_count > 0:
+            logger.info("BGM auto-start: opening")
+            idx = self._bgm_player.playlist_index
+            self._bgm_player.play_index(idx if idx >= 0 else 0)
+            return
+        default_url = self._settings.get("bgm", {}).get("default_url", "")
+        if default_url:
+            logger.info("BGM auto-start: opening (default URL)")
+            self._bgm_player.play(default_url)
+        else:
+            logger.warning("BGM auto-start skipped: playlist is empty")
+
+    def _enforce_operating_hours(self):
+        from core.bgm_player import BGMState
+        if self._pending_open_play and not self._ann_manager.is_broadcasting:
+            self._pending_open_play = False
+            if not self.is_closed():
+                self._start_bgm()
+
+        if self._bgm_player.state in (BGMState.STOPPED, BGMState.ERROR):
+            return
+        if self.is_closed_day(datetime.now().date()):
+            return  # manual playback allowed on closed days
+        if self.is_closed():
+            logger.info("BGM auto-stop: outside operating hours")
+            self._bgm_player.stop()
 
     @property
     def bgm_scheduled_items(self) -> list[dict]:

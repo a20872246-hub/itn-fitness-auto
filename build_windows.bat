@@ -117,6 +117,7 @@ set PYINST_CMD=%PYINST_CMD% --hidden-import=asyncio
 set PYINST_CMD=%PYINST_CMD% --hidden-import=aiohttp
 set PYINST_CMD=%PYINST_CMD% --collect-all=edge_tts
 set PYINST_CMD=%PYINST_CMD% --collect-all=yt_dlp
+set PYINST_CMD=%PYINST_CMD% --collect-all=holidays
 
 :: Add VLC DLLs if found
 if defined VLC_PATH (
